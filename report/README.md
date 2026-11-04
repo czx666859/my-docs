@@ -57,7 +57,14 @@
 
 ### 2.5 Actions 首次构建和部署
 
-第一次工作流运行由推送触发，运行记录为 **Deploy MkDocs to GitHub Pages #1**。截图显示整体状态为 **Success**，`build` 和 `deploy` 两个任务均成功，总耗时 57 秒；其中 `build` 为 27 秒，`deploy` 为 22 秒。部署记录提供的网站地址为 `https://czx666859.github.io/my-docs/`。
+第一次工作流运行由我向 `main` 分支推送项目文件触发。运行记录为 **Deploy MkDocs to GitHub Pages #1**，具体结果如下：
+
+- **触发方式：** `push`，运行页面显示提交者为 `czx666859`，分支为 `main`，对应提交短哈希为 `75f6044`。
+- **整体结果：** 状态为 **Success**，总耗时 **57 秒**，并生成了 1 个部署 artifact。
+- **`build` 任务：** 成功，耗时 **27 秒**。工作流完成源码检出、Python 环境配置、依赖安装和 MkDocs 构建，并上传生成的网站文件。
+- **`deploy` 任务：** 在 `build` 成功后运行，状态为成功，耗时 **22 秒**，将构建产物发布到 GitHub Pages。
+- **发布地址：** 运行记录显示网站地址为 <https://czx666859.github.io/my-docs/>。
+- **运行提示：** 页面显示 Node.js 20 弃用相关提示，但两个任务均成功，提示没有阻止本次构建和部署。
 
 运行链接：[第一次 Actions 运行](https://github.com/czx666859/my-docs/actions/runs/41465673242)
 
@@ -93,12 +100,12 @@
 
 ## 4. 原理理解
 
-1. **`docs/` 和 `site/` 各保存什么？为什么不用手工修改 `site/`？** `docs/` 保存我编写的 Markdown 源文件；`site/` 保存 MkDocs 根据源文件构建出的静态网站。每次构建都会重新生成 `site/`，所以手工改生成文件容易被覆盖；应该修改 `docs/` 中的源文件。
+1. **`docs/` 和 `site/` 各保存什么？为什么不用手工修改 `site/`？** `docs/` 保存我编写的 Markdown 源文件，例如首页、关于、使用指南和 API 参考。MkDocs 根据这些源文件和 `mkdocs.yml` 的配置生成 `site/`，其中包含浏览器访问所需的 HTML、样式和其他静态资源。`site/` 是构建产物，每次构建都会重新生成；如果直接修改里面的文件，改动可能在下一次构建时被覆盖，也无法反映回源文档。因此我应修改 `docs/` 中的 Markdown，再重新构建和部署。
 
-2. **本次工作流在什么情况下自动运行？** 当 `main` 分支收到推送，且提交改动包含 `docs/**`、`mkdocs.yml`、`requirements.txt` 或 `.github/workflows/deploy.yml` 中的文件时，工作流会自动运行。工作流还配置了 `workflow_dispatch`，可以从 Actions 页面手动启动。只修改 `report/README.md` 不会匹配上述 `paths`，因此不会自动触发网站部署。
+2. **本次工作流在什么情况下自动运行？** 工作流监听 `main` 分支上的 `push`，并设置了文件路径过滤条件：推送中包含 `docs/**`、`mkdocs.yml`、`requirements.txt` 或 `.github/workflows/deploy.yml` 的改动时会自动运行。比如修改网站页面后推送到 `main`，就会触发构建和部署；只修改不在这些路径里的文件则不会触发。工作流还配置了 `workflow_dispatch`，所以也可以在仓库的 Actions 页面手动启动，适合手动重试或排查问题。
 
-3. **`build` 与 `deploy` 两个任务有什么区别？** `build` 任务检出源码、配置 Python、安装依赖、运行 MkDocs 构建，并上传 `site/` 作为 Pages artifact。`deploy` 任务通过 `needs: build` 等待构建成功，再把 artifact 发布到 GitHub Pages。构建失败时，部署任务不会执行。
+3. **`build` 与 `deploy` 两个任务有什么区别？** `build` 负责准备和生成网站：检出仓库源码、配置 Python 3.12、安装 `requirements.txt` 中的依赖、运行 `python -m mkdocs build --strict`，最后将 `site/` 上传为 GitHub Pages artifact。`deploy` 通过 `needs: build` 依赖构建任务，只有构建成功后才会运行；它使用 Pages 部署权限和 OIDC 身份令牌，把刚才上传的 artifact 发布到 GitHub Pages。这样可以从运行记录中分别确认构建和发布是否成功。
 
-4. **只修改 `report/README.md` 会触发部署吗？为什么？** 不会。`report/README.md` 不在工作流 `push.paths` 列表中；只修改报告不会触发这条部署工作流。这是预期设置，因为报告和截图不是网站构建所需的文档源文件。
+4. **只修改 `report/README.md` 会触发部署吗？为什么？** 不会。工作流的 `push.paths` 只包含网站源文件、MkDocs 配置、依赖文件和工作流本身，没有包含 `report/README.md` 或 `report/images/**`。因此只更新报告或截图时，GitHub 不会启动这条网站部署工作流。报告是作业材料，不属于 MkDocs 网站构建所需的输入；如果同一次推送也修改了 `docs/` 等被监听的文件，工作流才会触发。
 
-5. **本次方案为何无需创建 `gh-pages` 分支？** 本次在 Pages 设置中选择了 `GitHub Actions` 作为发布来源。工作流将构建好的 `site/` 上传为 Pages artifact，再使用 `actions/deploy-pages` 发布，因此不需要把构建产物推送到 `gh-pages` 分支。
+5. **本次方案为何无需创建 `gh-pages` 分支？** 传统分支发布方式会把构建后的静态文件推送到专门的发布分支。本次在仓库 Pages 设置中选择 `GitHub Actions` 作为发布来源，工作流先把 `site/` 上传为 Pages artifact，再由 `actions/deploy-pages` 直接发布这个 artifact。GitHub Pages 通过工作流和部署环境接收构建产物，所以源码只需保留在 `main`，不需要额外创建或维护 `gh-pages` 分支。
