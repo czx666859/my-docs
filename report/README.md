@@ -33,6 +33,10 @@
 - `.github/workflows/deploy.yml` 定义 Actions 如何安装依赖、构建网站并发布到 GitHub Pages。
 - `report/` 保存个人实验报告和关键步骤截图。
 
+截图展示了项目根目录中的主要文件和文件夹：`.github/workflows/deploy.yml` 是自动部署工作流，`docs/` 中有 `index.md`、`about.md`、`guide.md` 和 `api.md` 四个网站页面，`report/` 中保存实验报告和截图；根目录还包含 `.gitignore`、`mkdocs.yml`、`README.md` 和 `requirements.txt`。左侧同时能看到本地虚拟环境 `.venv/` 和构建目录 `site/`。
+
+右侧打开的是 `mkdocs.yml`：其中 `site_name` 设置网站名称，`site_url` 和 `repo_url` 分别指向部署后的网站和源码仓库；`theme` 使用 Material 并设置中文，`nav` 定义四个页面的导航名称和顺序。导航路径相对于 `docs/`，因此配置中写 `index.md`、`about.md` 等文件名，不写 `docs/index.md`。`docs/` 保存我编写的 Markdown 源文件，`site/` 是 MkDocs 构建生成的网站文件；工作流会构建并部署 `site/`，所以日常修改应放在 `docs/` 中。`.github/workflows/deploy.yml` 负责自动构建和发布，`report/` 则用于记录作业过程与结果。
+
 ![项目结构与 MkDocs 配置](images/03-structure.png)
 
 ### 2.3 本地构建与预览
